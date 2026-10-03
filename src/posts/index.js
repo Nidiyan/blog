@@ -5,11 +5,18 @@ const modules = import.meta.glob(['./*.jsx', '!./_*.jsx'], { eager: true })
 
 export function buildPosts(postModules) {
   return Object.entries(postModules)
-    .map(([path, mod]) => ({
-      slug: path.replace(/^.*\//, '').replace(/\.jsx$/, ''),
-      ...mod.meta,
-      Component: mod.default,
-    }))
+    .map(([path, mod]) => {
+      if (!mod.meta?.title || !/^\d{4}-\d{2}-\d{2}$/.test(mod.meta.date ?? '')) {
+        throw new Error(
+          `Post ${path} must export meta with a title and a YYYY-MM-DD date`,
+        )
+      }
+      return {
+        slug: path.replace(/^.*\//, '').replace(/\.jsx$/, ''),
+        ...mod.meta,
+        Component: mod.default,
+      }
+    })
     .sort((a, b) => b.date.localeCompare(a.date))
 }
 

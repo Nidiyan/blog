@@ -21,6 +21,12 @@ describe('posts registry', () => {
     expect(result.map((p) => p.slug)).toEqual(['new', 'old'])
   })
 
+  it('throws a clear error for posts with invalid meta', () => {
+    expect(() =>
+      buildPosts({ './bad.jsx': { meta: { title: 'Bad' }, default: () => null } }),
+    ).toThrow('./bad.jsx')
+  })
+
   it('does not include the template', () => {
     expect(posts.find((p) => p.slug === '_template')).toBeUndefined()
   })
@@ -72,8 +78,13 @@ describe('pages', () => {
     expect(screen.getByRole('heading', { level: 1, name: post.title })).toBeInTheDocument()
   })
 
-  it('shows not found for unknown posts and routes', () => {
+  it('shows not found for unknown posts', () => {
     renderAt('/posts/does-not-exist')
+    expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
+  })
+
+  it('shows not found for unknown routes', () => {
+    renderAt('/nope')
     expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
   })
 })
