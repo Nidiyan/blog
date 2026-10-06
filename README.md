@@ -17,42 +17,38 @@ Open `http://localhost:8080`. Node.js 22 or later is needed only for the tests:
 ```sh
 npm test
 ```
+
 ## Hosting
 
-The site is hosted at `https://nidiyan.com` with this request path:
+The site at `https://nidiyan.com` is served through:
 
 ```text
 Cloudflare → Azure Front Door (AFD) → Azure Blob Storage static website
 ```
 
-Cloudflare proxies the public domain to AFD, which routes requests to the
-storage account's static website endpoint. Azure Blob Storage serves the files;
-there is no application server or build step.
+Azure storage account `nidsblog` hosts the contents of `public/` in its `$web`
+container. There is no build step or application server.
 
-To set up hosting:
+Set up the hosting resources before configuring deployment:
 
-1. Enable **Static website** on the Azure storage account (`nidsblog` for the
-   current deployment). Set the index document to `index.html` and the error
-   document to `404.html`. Azure creates the `$web` container.
-2. Upload the **contents** of `public/` into `$web`, so `index.html` is at the
-   container root, not inside a `public` folder.
-3. Configure AFD with the storage account's **static website endpoint** as its
-   origin, not the Blob service endpoint. Use the website endpoint's hostname
-   for the origin host header, HTTPS to the origin, and a route for `/*`.
-4. Add the public domain to AFD and enable HTTPS. In Cloudflare, point the
-   domain's DNS record to the AFD endpoint and enable proxying after completing
-   AFD domain validation. Use Cloudflare **Full (strict)** SSL/TLS mode so the
-   Cloudflare-to-AFD connection is also secured.
+1. Enable **Static website** on the storage account, with `index.html` as the
+   index document and `404.html` as the error document. This creates `$web`.
+2. Configure Azure Front Door (AFD) to route `/*` to the storage account's
+   **static website endpoint**, not its Blob service endpoint. Set the origin
+   host header to that website hostname and use HTTPS.
+3. Add `nidiyan.com` as an AFD custom domain, complete domain validation, and
+   enable HTTPS. Point Cloudflare DNS to the AFD endpoint, enable proxying, and
+   use **Full (strict)** SSL/TLS mode.
 
-The static website endpoint is publicly readable; this setup alone does not
-restrict access to Cloudflare or AFD.
+The storage website endpoint remains publicly readable; this architecture
+alone does not prevent direct access to the origin.
 
 ## GitHub Actions deployment
 
-The workflow in [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
-runs on every push to `main`, including merged pull requests. It checks out the
-repository, signs in to Azure, and uploads `./public` to the `nidsblog` storage
-account's `$web` container with Azure CLI:
+On every push to `main` (including merged pull requests),
+[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) checks out the
+repository, authenticates using `azure/login@v2`, and runs this upload through
+`azure/cli@v2`:
 
 ```sh
 az storage blob upload-batch \
@@ -63,36 +59,106 @@ az storage blob upload-batch \
   --overwrite
 ```
 
-### Credentials and permissions
+This uploads files directly into `$web` and overwrites matching blobs. It does
+not delete obsolete blobs or purge Cloudflare/AFD caches.
 
-Authentication uses **OpenID Connect (OIDC) federation with a Microsoft Entra
-identity**, rather than a stored client secret, storage account key, or SAS
-token. The workflow's `id-token: write` permission lets `azure/login@v2`
-exchange a short-lived GitHub OIDC token for Azure access. It reads these
-repository Actions secrets:
+### One-time deployment identity setup (Azure CLI)
 
-| Secret | Value |
+The credential type is **Microsoft Entra workload identity federation using
+OpenID Connect (OIDC)**. GitHub gets short-lived Azure tokens; no client secret,
+storage account key, or SAS token is stored. The workflow has `id-token: write`
+to request its GitHub OIDC token and `contents: read` to check out the site.
+
+The following Bash commands reproduce the identity setup for this workflow.
+Run them locally with Azure CLI as an administrator allowed to create Entra
+applications/service principals and assign Azure roles. These are one-time
+setup commands, not commands executed by the deployment workflow.
+
+**1. Sign in and select the subscription containing `nidsblog`.**
+
+Replace the subscription and resource group placeholders with your values.
+
+```sh
+az login
+az account set --subscription "<subscription-id>"
+
+RESOURCE_GROUP="<storage-resource-group>"
+SUBSCRIPTION_ID=$(az account show --query id --output tsv)
+TENANT_ID=$(az account show --query tenantId --output tsv)
+```
+
+**2. Create the Entra application and its service principal.**
+
+The application holds the GitHub federation configuration. Its service
+principal is the identity that receives permission to upload blobs.
+
+```sh
+CLIENT_ID=$(az ad app create \
+  --display-name "blog-github-deploy" \
+  --query appId --output tsv)
+
+APP_OBJECT_ID=$(az ad app show --id "$CLIENT_ID" --query id --output tsv)
+
+SP_OBJECT_ID=$(az ad sp create \
+  --id "$CLIENT_ID" \
+  --query id --output tsv)
+```
+
+**3. Trust GitHub Actions runs from this repository's `main` branch.**
+
+```sh
+az ad app federated-credential create \
+  --id "$APP_OBJECT_ID" \
+  --parameters '{
+    "name": "github-main",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "subject": "repo:Nidiyan/blog:ref:refs/heads/main",
+    "audiences": ["api://AzureADTokenExchange"]
+  }'
+```
+
+The subject must match the repository and branch exactly. This workflow does
+not use a GitHub environment; adding one requires updating the federated
+subject to match that environment.
+
+**4. Allow the service principal to upload to `$web` only.**
+
+Static website hosting must already be enabled so the container exists.
+
+```sh
+STORAGE_ID=$(az storage account show \
+  --name nidsblog \
+  --resource-group "$RESOURCE_GROUP" \
+  --query id --output tsv)
+
+az role assignment create \
+  --assignee-object-id "$SP_OBJECT_ID" \
+  --assignee-principal-type ServicePrincipal \
+  --role "Storage Blob Data Contributor" \
+  --scope "${STORAGE_ID}/blobServices/default/containers/\$web"
+```
+
+This data-plane role allows the workflow's `--auth-mode login` upload without
+giving the identity permission to manage the storage account. Role assignments
+can take a few minutes to propagate.
+
+**5. Add the identifiers as GitHub Actions secrets.**
+
+Retrieve the values from the same shell:
+
+```sh
+printf 'AZURE_CLIENT_ID=%s\nAZURE_TENANT_ID=%s\nAZURE_SUBSCRIPTION_ID=%s\n' \
+  "$CLIENT_ID" "$TENANT_ID" "$SUBSCRIPTION_ID"
+```
+
+In **Settings → Secrets and variables → Actions** for `Nidiyan/blog`, create:
+
+| Repository secret | Value from the setup |
 | --- | --- |
-| `AZURE_CLIENT_ID` | Client ID of the Azure identity used for deployment |
-| `AZURE_TENANT_ID` | Microsoft Entra tenant ID |
-| `AZURE_SUBSCRIPTION_ID` | Azure subscription ID |
+| `AZURE_CLIENT_ID` | `CLIENT_ID` (application client ID, not an object ID) |
+| `AZURE_TENANT_ID` | `TENANT_ID` |
+| `AZURE_SUBSCRIPTION_ID` | `SUBSCRIPTION_ID` |
 
-These values identify the identity and subscription; they are not passwords.
-To reproduce this setup, create a Microsoft Entra application/service principal
-with a federated credential trusting GitHub Actions:
-
-- Issuer: `https://token.actions.githubusercontent.com`
-- Subject: `repo:Nidiyan/blog:ref:refs/heads/main`
-- Audience: `api://AzureADTokenExchange`
-
-Grant the deployment identity **Storage Blob Data Contributor** on the `$web`
-container (or the storage account if broader access is needed), and add the
-three identifiers above under **Settings → Secrets and variables → Actions**.
-The data-plane role allows `--auth-mode login` to upload and overwrite blobs
-without a storage key. Update the workflow's account name and federated subject
-if deploying to another account or repository.
-
-Uploads replace matching files but do **not** delete blobs whose source files
-were removed. Remove obsolete blobs separately when needed. The workflow does
-not provision hosting resources or purge Cloudflare/AFD caches; cached content
-may remain until its cache lifetime expires or those caches are purged.
+These are identifiers, not passwords. Once configured, pushes to `main`
+automatically publish `public/` to `$web`. Hosting resources are managed
+separately; the workflow only uploads the site.
