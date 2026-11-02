@@ -43,10 +43,19 @@ for (const page of pages) {
   });
 }
 
-test('About offers Instagram and email without collecting subscriptions', () => {
+test('About offers social links in the requested order without collecting subscriptions', () => {
   const html = readFileSync(path.join(publicDir, 'about.html'), 'utf8');
-  assert.match(html, /href="https:\/\/www.instagram.com\/"/);
-  assert.match(html, /href="mailto:[^"]+"/);
+  const links = [...html.matchAll(/<a href="([^"]+)"[^>]*>([^<]+)/g)]
+    .map(([, href, label]) => ({ href, label: label.trim() }));
+  assert.deepEqual(
+    links.filter(({ label }) => ['Instagram', 'LinkedIn', 'GitHub', 'Email'].includes(label)),
+    [
+      { href: 'https://www.instagram.com/nidiyan_', label: 'Instagram' },
+      { href: 'https://www.linkedin.com/in/nidiyan', label: 'LinkedIn' },
+      { href: 'https://www.github.com/nidiyan', label: 'GitHub' },
+      { href: 'mailto:nidiyanblog@gmail.com', label: 'Email' }
+    ]
+  );
   for (const page of pages) {
     const content = readFileSync(path.join(publicDir, page), 'utf8');
     assert.doesNotMatch(content, /<form|<script/i);
