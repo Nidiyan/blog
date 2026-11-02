@@ -17,4 +17,9 @@ Open `http://localhost:8080`. Node.js 22 or later is needed only for the tests:
 ```sh
 npm test
 ```
-Hosted on Azure at nidiyan.com
+
+## Hosting and routing
+
+The site is hosted on Azure and served at [nidiyan.com](https://nidiyan.com).
+Cloudflare manages DNS for the domain and forwards traffic to Azure Front Door
+(AFD), which routes requests to the Azure Blob Storage static website.
