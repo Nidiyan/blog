@@ -18,6 +18,18 @@ Open `http://localhost:8080`. Node.js 22 or later is needed only for the tests:
 npm test
 ```
 
+## Creating posts with Copilot
+
+Use the [`create-post` skill](.github/skills/create-post/SKILL.md) by asking
+Copilot to create a post and supplying its title and complete content. You can
+also supply a publication date and slug.
+
+The skill creates the static page and updates the post listings while preserving
+the supplied wording and formatting. It then lists grammar and punctuation
+suggestions in numbered order, without applying them. Approve specific numbers
+to make only those changes. If formatting was lost during pasting, the skill
+asks for clarification rather than guessing. Creating a page does not deploy it.
+
 ## Hosting and routing
 
 The site is hosted on Azure and served at [nidiyan.com](https://nidiyan.com).
