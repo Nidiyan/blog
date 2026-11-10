@@ -4,6 +4,10 @@ A dependency-free personal blog with Home, Posts, About, and a custom 404 page.
 The complete site lives in `public/`: plain HTML and CSS, with no build step,
 JavaScript, external fonts, or runtime services.
 
+The shared editorial styling uses a warm paper palette, plum accents, responsive
+post cards, and a CSS-drawn landscape on the home page. Subtle entrance and
+illustration animations respect the visitor's reduced-motion preference.
+
 ## Preview and test
 
 From the repository root, serve the site with Python 3:
