@@ -13,6 +13,23 @@ test('the site includes home, posts, about, a sample post, and an error page', (
   }
 });
 
+test('the homepage has the public blog identity and structured SEO metadata', () => {
+  const html = readFileSync(path.join(publicDir, 'index.html'), 'utf8');
+  assert.match(html, /<title>Nidiyan's blog, nids blog :\)<\/title>/);
+  assert.match(html, /<link rel="canonical" href="https:\/\/nidiyan\.com\/">/);
+  assert.match(html, /<meta property="og:type" content="website">/);
+  assert.match(html, /<script type="application\/ld\+json">/);
+});
+
+test('the public site includes a crawlable sitemap and robots policy', () => {
+  const sitemap = readFileSync(path.join(publicDir, 'sitemap.xml'), 'utf8');
+  const robots = readFileSync(path.join(publicDir, 'robots.txt'), 'utf8');
+  assert.match(sitemap, /<loc>https:\/\/nidiyan\.com\/<\/loc>/);
+  assert.match(sitemap, /posts\/welcome\.html/);
+  assert.match(robots, /Allow: \//);
+  assert.match(robots, /Sitemap: https:\/\/nidiyan\.com\/sitemap\.xml/);
+});
+
 for (const page of pages) {
   const html = readFileSync(path.join(publicDir, page), 'utf8');
 
@@ -58,6 +75,7 @@ test('About offers social links in the requested order without collecting subscr
   );
   for (const page of pages) {
     const content = readFileSync(path.join(publicDir, page), 'utf8');
-    assert.doesNotMatch(content, /<form|<script/i);
+    assert.doesNotMatch(content, /<form/i);
+    assert.doesNotMatch(content, /<script(?! type="application\/ld\+json")/i);
   }
 });
