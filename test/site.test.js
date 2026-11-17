@@ -15,7 +15,7 @@ test('the site includes home, posts, about, a sample post, and an error page', (
 
 test('the homepage has the public blog identity and structured SEO metadata', () => {
   const html = readFileSync(path.join(publicDir, 'index.html'), 'utf8');
-  assert.match(html, /<title>Nidiyans blog :\)<\/title>/);
+  assert.match(html, /<title>Nidiyan's blog :\)<\/title>/);
   assert.match(html, /<link rel="canonical" href="https:\/\/nidiyan\.com\/">/);
   assert.match(html, /<meta property="og:type" content="website">/);
   assert.match(html, /<script type="application\/ld\+json">/);
