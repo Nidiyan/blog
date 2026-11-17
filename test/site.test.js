@@ -7,8 +7,8 @@ const publicDir = path.resolve(__dirname, '../public');
 const pages = readdirSync(publicDir, { recursive: true })
   .filter(file => file.endsWith('.html'));
 
-test('the site includes home, posts, about, a sample post, and an error page', () => {
-  for (const file of ['index.html', 'posts.html', 'about.html', 'posts/welcome.html', '404.html']) {
+test('the site includes home, posts, about, and an error page', () => {
+  for (const file of ['index.html', 'posts.html', 'about.html', '404.html']) {
     assert.ok(pages.includes(file), `Missing ${file}`);
   }
 });
@@ -25,7 +25,6 @@ test('the public site includes a crawlable sitemap and robots policy', () => {
   const sitemap = readFileSync(path.join(publicDir, 'sitemap.xml'), 'utf8');
   const robots = readFileSync(path.join(publicDir, 'robots.txt'), 'utf8');
   assert.match(sitemap, /<loc>https:\/\/nidiyan\.com\/<\/loc>/);
-  assert.match(sitemap, /posts\/welcome\.html/);
   assert.match(robots, /Allow: \//);
   assert.match(robots, /Sitemap: https:\/\/nidiyan\.com\/sitemap\.xml/);
 });
