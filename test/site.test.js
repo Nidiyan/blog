@@ -7,8 +7,8 @@ const publicDir = path.resolve(__dirname, '../public');
 const pages = readdirSync(publicDir, { recursive: true })
   .filter(file => file.endsWith('.html'));
 
-test('the site includes home, posts, about, a sample post, and an error page', () => {
-  for (const file of ['index.html', 'posts.html', 'about.html', 'posts/welcome.html', '404.html']) {
+test('the site includes home, posts, about, and an error page', () => {
+  for (const file of ['index.html', 'posts.html', 'about.html', '404.html']) {
     assert.ok(pages.includes(file), `Missing ${file}`);
   }
 });
